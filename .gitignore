@@ -1,3 +1,5 @@
 venv
 *cache*
 *idea*
+test_copy.db
+.gitignore
