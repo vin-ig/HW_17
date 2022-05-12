@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_restx import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, and_
@@ -6,6 +6,7 @@ from marshmallow import Schema, fields
 
 
 def check_keys(data: dict, allowed_keys: set) -> bool:
+	"""Проверяет правильность ключей"""
 	for key in data:
 		if key not in allowed_keys:
 			return False
@@ -22,6 +23,7 @@ app.config['JSON_AS_ASCII'] = False
 db = SQLAlchemy(app)
 
 
+# Создаем модели таблиц
 class Movie(db.Model):
 	__tablename__ = 'movie'
 	id = db.Column(db.Integer, primary_key=True)
@@ -48,6 +50,7 @@ class Genre(db.Model):
 	name = db.Column(db.String(255))
 
 
+# Создаем схемы для сериализации
 class MovieSchema(Schema):
 	id = fields.Int()
 	title = fields.Str()
@@ -69,15 +72,18 @@ class GenreSchema(Schema):
 	name = fields.Str()
 
 
+# Создаем namespaces
 api = Api(app)
 movie_ns = api.namespace('movies')
 director_ns = api.namespace('directors')
 genre_ns = api.namespace('genres')
 
+# Допустимые ключи для проверки
 movie_keys = {'title', 'description', 'trailer', 'year', 'rating', 'genre_id', 'director_id'}
 director_keys = {'name'}
 genre_keys = {'name'}
 
+# Создаем экземпляры классов схем сериализации
 movie_s = MovieSchema()
 movies_s = MovieSchema(many=True)
 director_s = DirectorSchema()
@@ -86,18 +92,29 @@ genre_s = GenreSchema()
 genres_s = GenreSchema(many=True)
 
 
-############################################
+# Представления для фильмов
 @movie_ns.route('/')
 class MoviesView(Resource):
+	"""Вывод нескольких фильмов, добавление нового в БД"""
 	def get(self):
 		director_id = request.values.get('director_id')
 		genre_id = request.values.get('genre_id')
+
+		# Разделяем вывод фильмов на страницы
+		try:
+			page = int(request.values.get('page'))
+			lim = int(request.values.get('limit'))
+		except (TypeError, ValueError):
+			page = 1
+			lim = Movie.query.count()
+		offs = (page - 1) * lim
+
 		if director_id and genre_id:
-			movies = Movie.query.filter(and_(Movie.director_id == director_id, Movie.genre_id == genre_id)).limit(5).all()
+			movies = Movie.query.filter(and_(Movie.director_id == director_id, Movie.genre_id == genre_id)).all()
 		elif director_id or genre_id:
-			movies = Movie.query.filter(or_(Movie.director_id == director_id, Movie.genre_id == genre_id)).limit(5).all()
+			movies = Movie.query.filter(or_(Movie.director_id == director_id, Movie.genre_id == genre_id)).all()
 		else:
-			movies = Movie.query.limit(5).all()
+			movies = Movie.query.limit(lim).offset(offs).all()
 
 		return movies_s.dump(movies), 200
 
@@ -110,8 +127,9 @@ class MoviesView(Resource):
 		return 'Фильм добавлен!', 200
 
 
-@movie_ns.route('/<int:uid>/')
+@movie_ns.route('/<int:uid>')
 class MovieView(Resource):
+	"""Вывод, изменение, удаление одного фильма"""
 	def get(self, uid):
 		movie = Movie.query.get(uid)
 		if not movie:
@@ -169,9 +187,10 @@ class MovieView(Resource):
 		return 'Фильм удален', 200
 
 
-############################################
+# Представления для режиссеров
 @director_ns.route('/')
 class DirectorsView(Resource):
+	"""Вывод всех режиссеров, добавление нового"""
 	def get(self):
 		directors = Director.query.all()
 		return directors_s.dump(directors), 200
@@ -186,8 +205,9 @@ class DirectorsView(Resource):
 		return 'Режиссер добавлен!', 201
 
 
-@director_ns.route('/<int:uid>/')
+@director_ns.route('/<int:uid>')
 class DirectorView(Resource):
+	"""Вывод, изменение, удаление режиссера"""
 	def get(self, uid):
 		director = Director.query.get(uid)
 		if not director:
@@ -218,9 +238,10 @@ class DirectorView(Resource):
 		return 'Режиссер удален', 200
 
 
-############################################
+# Представления для жанров
 @genre_ns.route('/')
 class GenresView(Resource):
+	"""Вывод всех жанров, добавление нового"""
 	def get(self):
 		genres = Genre.query.all()
 		return genres_s.dump(genres), 200
@@ -235,8 +256,9 @@ class GenresView(Resource):
 		return 'Жанр добавлен!', 201
 
 
-@genre_ns.route('/<int:uid>/')
+@genre_ns.route('/<int:uid>')
 class GenreView(Resource):
+	"""Вывод, изменение, удаление жанра"""
 	def get(self, uid):
 		genre = Genre.query.get(uid)
 		if not genre:
