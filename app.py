@@ -1,3 +1,4 @@
+import sqlalchemy
 from flask import Flask, request
 from flask_restx import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
@@ -15,7 +16,7 @@ def check_keys(data: dict, allowed_keys: set) -> bool:
 
 
 app = Flask(__name__)
-app.config['DEBUG'] = True
+# app.config['DEBUG'] = True
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
@@ -93,6 +94,18 @@ directors_s = DirectorSchema(many=True)
 genre_s = GenreSchema()
 genres_s = GenreSchema(many=True)
 
+# Запрос для формирования корректного вывода фильмов
+query_ = (
+	Movie.id,
+	Movie.title,
+	Movie.description,
+	Movie.trailer,
+	Movie.year,
+	Movie.rating,
+	Director.name.label('director'),
+	Genre.name.label('genre')
+)
+
 
 # Представления для фильмов
 @movie_ns.route('/')
@@ -110,17 +123,6 @@ class MoviesView(Resource):
 			page = 1
 			lim = Movie.query.count()
 		offs = (page - 1) * lim
-
-		query_ = (
-			Movie.id,
-			Movie.title,
-			Movie.description,
-			Movie.trailer,
-			Movie.year,
-			Movie.rating,
-			Director.name.label('director'),
-			Genre.name.label('genre')
-		)
 
 		param = Movie.director_id == director_id, Movie.genre_id == genre_id
 		if director_id and genre_id:
@@ -145,10 +147,11 @@ class MoviesView(Resource):
 class MovieView(Resource):
 	"""Вывод, изменение, удаление одного фильма"""
 	def get(self, uid):
-		movie = Movie.query.get(uid)
-		if not movie:
+		try:
+			movie = db.session.query(*query_).join(Director).join(Genre).filter(Movie.id == uid).one()
+			return movie_s.dump(movie), 200
+		except sqlalchemy.exc.NoResultFound:
 			return 'Нет фильма с таким ID', 404
-		return movie_s.dump(movie), 200
 
 	def put(self, uid):
 		movie = Movie.query.get(uid)
