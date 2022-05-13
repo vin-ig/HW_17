@@ -1,8 +1,7 @@
-import sqlalchemy
 from flask import Flask, request
 from flask_restx import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, exc
 from marshmallow import Schema, fields
 
 
@@ -150,7 +149,7 @@ class MovieView(Resource):
 		try:
 			movie = db.session.query(*query_).join(Director).join(Genre).filter(Movie.id == uid).one()
 			return movie_s.dump(movie), 200
-		except sqlalchemy.exc.NoResultFound:
+		except exc.NoResultFound:
 			return 'Нет фильма с таким ID', 404
 
 	def put(self, uid):
