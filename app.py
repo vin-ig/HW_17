@@ -60,8 +60,8 @@ class MovieSchema(Schema):
 	trailer = fields.Str()
 	year = fields.Int()
 	rating = fields.Float()
-	genre_id = fields.Int()
-	director_id = fields.Int()
+	genre = fields.Str()
+	director = fields.Str()
 
 
 class DirectorSchema(Schema):
@@ -111,12 +111,24 @@ class MoviesView(Resource):
 			lim = Movie.query.count()
 		offs = (page - 1) * lim
 
+		query_ = (
+			Movie.id,
+			Movie.title,
+			Movie.description,
+			Movie.trailer,
+			Movie.year,
+			Movie.rating,
+			Director.name.label('director'),
+			Genre.name.label('genre')
+		)
+
+		param = Movie.director_id == director_id, Movie.genre_id == genre_id
 		if director_id and genre_id:
-			movies = Movie.query.filter(and_(Movie.director_id == director_id, Movie.genre_id == genre_id)).all()
+			movies = db.session.query(*query_).join(Director).join(Genre).filter(and_(*param)).all()
 		elif director_id or genre_id:
-			movies = Movie.query.filter(or_(Movie.director_id == director_id, Movie.genre_id == genre_id)).all()
+			movies = db.session.query(*query_).join(Director).join(Genre).filter(or_(*param)).all()
 		else:
-			movies = Movie.query.limit(lim).offset(offs).all()
+			movies = db.session.query(*query_).join(Director).join(Genre).limit(lim).offset(offs).all()
 
 		return movies_s.dump(movies), 200
 
